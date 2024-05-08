@@ -7,9 +7,10 @@ module condiciones
         ! pf posicion final
         ! upot la energia potencial del sistema
         ! dt el paso de integracion
+        ! f es cada cuanto queremos guardar datos
                 implicit none 
-                integer :: N,nt
-                double precision :: p0, pf, upot, dt
+                integer :: N,nt,f
+                double precision :: lx,ly,lz,upot, dt
                 double precision, allocatable, dimension(:) :: ut
 end module condiciones
 
@@ -45,6 +46,7 @@ program practica
         call guardarPosiciones
         call generarVelocidades
         call calcularFuerzas
+        write(*,*) "Se ha iniciado la simulacion :)"
         call ejecutarSimulacion
         write(*,*) "La suma de fuerzas es: ", sum(fx+fy+fz)
         write(*,*) "La energia potencial es: ", upot/N
@@ -56,10 +58,12 @@ subroutine leerConfiguracion
         use condiciones
         open(1,file="config.txt",status="old",action="read")
         read(1,*) N
-        read(1,*) p0
-        read(1,*) pf
+        read(1,*) lx
+        read(1,*) ly
+        read(1,*) lz
         read(1,*) nt
         read(1,*) dt
+        read(1,*) f
         close(1)
 end subroutine
 
@@ -71,13 +75,15 @@ subroutine generarPosiciones
         implicit none
         integer :: i,j,k,m
         m = 0
-        do i =  0,int(pf)-1
-            do j = 0,int(pf)-1
-                do k = 0,int(pf)-1
-                     m = m+1
-                     rx(m) = dble(i)
-                     ry(m) = dble(j)
-                     rz(m) = dble(k)
+        do k =  0,int(lz)-1
+            do j = 0,int(ly)-1
+                do i = 0,int(lx)-1
+                     if (m<N) then
+                        m = m+1
+                        rx(m) = dble(i)
+                        ry(m) = dble(j)
+                        rz(m) = dble(k)
+                      end if
                 end do
             end do
         end do 
@@ -93,7 +99,7 @@ subroutine guardarPosiciones
         i = 0
         open(1,file="pos.xyz",status="replace",action="write")
         write(1,*) N
-        write(1,*) 
+        write(1,*) !'Lattice="',lx,' 0 0 0 ',ly,' 0 0 0 ','"' 
         do i = 1,N
              write(1,100) "C",rx(i),ry(i),rz(i)  
         end do
@@ -152,20 +158,20 @@ subroutine calcularFuerzas
                         dy = ry(i)-ry(j)
                         dz = rz(i)-rz(j)
                         ! utilizando condiciones de la minima imagen para evitar colisiones kbronas
-                        if (dx>pf*0.50d0) then
-                                dx = dx-pf
+                        if (dx>lx*0.50d0) then
+                                dx = dx-lx
                         else 
-                        if (dx<-pf*0.050d0) dx = dx+pf
+                        if (dx<-lx*0.50d0) dx = dx+lx
                         end if
-                        if (dy>pf*0.50d0) then
-                                dy = dy-pf
+                        if (dy>ly*0.50d0) then
+                                dy = dy-ly
                         else 
-                        if (dy<-pf*0.050d0) dy = dy+pf
+                        if (dy<-ly*0.50d0) dy = dy+ly
                         end if
-                        if (dz>pf*0.50d0) then
-                                dz = dz-pf
+                        if (dz>lz*0.50d0) then
+                                dz = dz-lz
                         else 
-                        if (dz<-pf*0.050d0) dz = dz+pf
+                        if (dz<-lz*0.50d0) dz = dz+lz
                         end if
                         r = sqrt(dx**2.0d0+dy**2.0d0+dz**2.0d0)
                         ! llamar al potencial de llenardJhones
@@ -200,47 +206,47 @@ subroutine ejecutarSimulacion
         use velocidades 
         use posiciones
         use condiciones
-        integer :: paso,i,f,c
-        c = 1
-        f = 100
+        integer :: paso,i
         do paso = 1,nt
-                do i = 1,N
-                
-                        rx(i) = rx(i)+vx(i)*dt + 0.50d0*fx(i)*dt**2.0d0
-                        ry(i) = ry(i)+vy(i)*dt + 0.50d0*fy(i)*dt**2.0d0
-                        rz(i) = rz(i)+vz(i)*dt + 0.50d0*fz(i)*dt**2.0d0
-                        
+                do i = 1,N             
+                        vx(i) = vx(i) + fx(i)*dt*0.50d0
+                        vy(i) = vy(i) + fy(i)*dt*0.50d0
+                        vz(i) = vz(i) + fz(i)*dt*0.50d0
+
+                        rx(i) = rx(i)+vx(i)*dt 
+                        ry(i) = ry(i)+vy(i)*dt 
+                        rz(i) = rz(i)+vz(i)*dt 
+                  
                         ! condiciones periodicas
 
-                        if(rx(i)>pf)rx(i)=rx(i)-pf
-                        if(ry(i)>pf)ry(i)=ry(i)-pf
-                        if(rz(i)>pf)rz(i)=rz(i)-pf
+                        if(rx(i)>lx)rx(i)=rx(i)-ly
+                        if(ry(i)>ly)ry(i)=ry(i)-lx
+                        if(rz(i)>lz)rz(i)=rz(i)-lz
                         
-                        if(rx(i)<0.0d0)rx(i)=rx(i)+pf
-                        if(ry(i)<0.0d0)ry(i)=ry(i)+pf
-                        if(rz(i)<0.0d0)rz(i)=rz(i)+pf
+                        if(rx(i)<0.0d0)rx(i)=rx(i)+lx
+                        if(ry(i)<0.0d0)ry(i)=ry(i)+ly
+                        if(rz(i)<0.0d0)rz(i)=rz(i)+lz
 
-                        vx(i) = vx(i) + fx(i)*dt
-                        vy(i) = vy(i) + fy(i)*dt
-                        vz(i) = vz(i) + fz(i)*dt
+                end do
+                call calcularFuerzas
+                do i =1,N         
+                        vx(i) = vx(i) + fx(i)*dt*0.50d0
+                        vy(i) = vy(i) + fy(i)*dt*0.50d0
+                        vz(i) = vz(i) + fz(i)*dt*0.50d0
                 end do
                 ukin = 0.50d0*sum(vx**2+vy**2+vz**2)
-                ti = 2.0d0*ukin/(3*n)
-
-                
-                call calcularFuerzas
-               ! if(paso>=f) then
+                ti = 2.0d0*ukin/(3*N)
+                if(mod(paso,f)==0) then
                         write(*,*) paso,upot/dble(N),ti,ukin/dble(N)
-                !        c = c+1
-                !        f = c*f
-                 !       write(*,*) "han pasado ...",f,"..... iteraciones"
-                !end if
+                        !write(*,*) "han pasado ...",f,"..... iteraciones"
+                end if
                 write(1,*) N
-                write(1,*)
+                write(1,*) !'Lattice="',lx,' 0 0 0 ',ly,' 0 0 0 ','"' 
                 do i =1,N
                         write(1,100) "C",rx(i),ry(i),rz(i)
                 end do
-                100 format(a,3f10.5)
+                100 format(a,3f15.10)
+                !200 format(I6,3f15.10)
         end do
 end subroutine
 
