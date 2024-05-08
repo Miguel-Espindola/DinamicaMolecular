@@ -1,5 +1,12 @@
-!
+! este programa hace la simulacion de un fluido tomando como potencial de interaccion un leenard jhones
 module condiciones
+        ! este modulo guarda las condiciones iniciales del sistema
+        ! las cuales son N el numero de particulas
+        ! nt el numero de iteraciones
+        ! p0 posicion inicial
+        ! pf posicion final
+        ! upot la energia potencial del sistema
+        ! dt el paso de integracion
                 implicit none 
                 integer :: N,nt
                 double precision :: p0, pf, upot, dt
@@ -7,20 +14,24 @@ module condiciones
 end module condiciones
 
 module posiciones
+        ! este modulo guarda las posiciones de las particulas
         implicit none
         double precision, allocatable, dimension(:) :: rx,ry,rz
 end module posiciones
 
 module velocidades
+        ! este modulo guarda las velocidades de las particulas
         implicit none
         double precision, allocatable, dimension(:) :: vx,vy,vz
 end module velocidades
 
 module fuerzas
+        ! este modulo guarda las fuerzas de interaccion entre las particulas
         implicit none
         double precision, allocatable, dimension(:) :: fx,fy,fz
 end module fuerzas
-
+!-----------------------
+! inicion del programa main
 program practica  
         use condiciones
         use posiciones
@@ -40,6 +51,8 @@ program practica
 end program practica
 
 subroutine leerConfiguracion
+        ! esta subrutina lee un archvio de configuracion y guarda las condiciones
+        ! iniciales en las variables correspondientes
         use condiciones
         open(1,file="config.txt",status="old",action="read")
         read(1,*) N
@@ -51,6 +64,8 @@ subroutine leerConfiguracion
 end subroutine
 
 subroutine generarPosiciones
+        ! esta subrutina genera las posiciones de las particulas como si estuvieran 
+        ! en una estructura cristalina
         use condiciones
         use posiciones
         implicit none
@@ -70,6 +85,8 @@ subroutine generarPosiciones
 end subroutine
 
 subroutine guardarPosiciones
+        ! esta subrutina guarda las posiciones de las particulas en un archivo pos.xyz
+        ! para posteriormente ver su dinamica en ovito
         use condiciones
         use posiciones
         integer :: i
@@ -85,6 +102,7 @@ subroutine guardarPosiciones
 end subroutine 
 
 subroutine generarVelocidades
+        ! esta subrutina genera las velocidades de las particulas de manera aleatoria
         use velocidades
         use condiciones
         implicit none
@@ -107,6 +125,8 @@ subroutine generarVelocidades
 end subroutine
 
 subroutine calcularFuerzas
+        ! esta subrutina calcula las fuerzas de interaccion entre cada particula
+
         use fuerzas
         use velocidades
         use posiciones
@@ -148,6 +168,7 @@ subroutine calcularFuerzas
                         if (dz<-pf*0.050d0) dz = dz+pf
                         end if
                         r = sqrt(dx**2.0d0+dy**2.0d0+dz**2.0d0)
+                        ! llamar al potencial de llenardJhones
                         call leenardJhones(r,sig,eps,pot,dpot)
                         upot = pot+upot
                         fx(i) = fx(i) + dpot*(dx/r)
@@ -162,6 +183,7 @@ subroutine calcularFuerzas
 end subroutine
 
 subroutine leenardJhones(r,sig,eps,pot,dpot)
+        ! esta subrutina calcula el potencial de leenard jhones para dos particulas
         implicit none
         double precision, intent(in) :: r,sig,eps
         double precision, intent(out) :: pot,dpot 
@@ -171,6 +193,9 @@ subroutine leenardJhones(r,sig,eps,pot,dpot)
 end subroutine
 
 subroutine ejecutarSimulacion
+        ! esta subrutina ejecuta el bucle de la simulacion, calcula las posiciones
+        ! y posteriormente las velocidades, manda a llamar a la subrutina fuerzas y a
+        ! y guarda los datos en el archivo creado en la subrutina de guardarPosiciones
         use fuerzas
         use velocidades 
         use posiciones
@@ -218,3 +243,5 @@ subroutine ejecutarSimulacion
                 100 format(a,3f10.5)
         end do
 end subroutine
+
+
