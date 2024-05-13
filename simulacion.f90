@@ -9,9 +9,10 @@ module condiciones
         ! dt el paso de integracion
         ! f es cada cuanto queremos guardar datos
                 implicit none 
-                integer :: N,nt,f
-                double precision :: lx,ly,lz,upot, dt
+                integer :: N,nt,f,nbins,veces
+                double precision :: lx,ly,lz,upot,dt,deltaz
                 double precision, allocatable, dimension(:) :: ut
+                double precision, allocatable,dimension(:) :: perfil
 end module condiciones
 
 module posiciones
@@ -45,11 +46,13 @@ program practica
         call generarPosiciones
         call guardarPosiciones
         call generarVelocidades
-        call calcularFuerzas
+        call calcularFuerzas      
+        call calcularPerfilrho(0)       
         write(*,*) "Se ha iniciado la simulacion :)"
         call ejecutarSimulacion
+        call calcularPerfilrho(2)
         write(*,*) "La suma de fuerzas es: ", sum(fx+fy+fz)
-        write(*,*) "La energia potencial es: ", upot/N
+        write(*,*) "La energia potencial es: ", upot/dble(N)
 end program practica
 
 subroutine leerConfiguracion
@@ -64,6 +67,7 @@ subroutine leerConfiguracion
         read(1,*) nt
         read(1,*) dt
         read(1,*) f
+        read(1,*) deltaz
         close(1)
 end subroutine
 
@@ -99,11 +103,10 @@ subroutine guardarPosiciones
         i = 0
         open(1,file="pos.xyz",status="replace",action="write")
         write(1,*) N
-        write(1,*) !'Lattice="',lx,' 0 0 0 ',ly,' 0 0 0 ','"' 
+        write(1,*) 'Lattice="',lx,' 0 0 0 ',ly,' 0 0 0 ',lz,'"' 
         do i = 1,N
              write(1,100) "C",rx(i),ry(i),rz(i)  
         end do
-       ! close(1)
         100 format(a,3f10.5)
 end subroutine 
 
@@ -142,16 +145,10 @@ subroutine calcularFuerzas
         double precision ::r,eps,sig,pot,dpot,dx,dy,dz
         sig = 1.0d0
         eps = 1.0d0
+        upot = 0.0d0
         fx = 0.0d0
         fy = 0.0d0
         fz = 0.0d0
-        pot = 0.0d0
-        r = 0.0d0
-        upot = 0.0d0
-        dpot = 0.0d0
-        dx = 0.0d0
-        dy = 0.0d0
-        dz = 0.0d0
         do i = 1,n-1
                 do j = i+1,n
                         dx = rx(i)-rx(j)
@@ -207,6 +204,9 @@ subroutine ejecutarSimulacion
         use posiciones
         use condiciones
         integer :: paso,i
+        double precision :: utot
+        utot = 0.0d0
+        open(9,file="eukt.dat",status="replace",action="write")
         do paso = 1,nt
                 do i = 1,N             
                         vx(i) = vx(i) + fx(i)*dt*0.50d0
@@ -235,19 +235,53 @@ subroutine ejecutarSimulacion
                         vz(i) = vz(i) + fz(i)*dt*0.50d0
                 end do
                 ukin = 0.50d0*sum(vx**2+vy**2+vz**2)
-                ti = 2.0d0*ukin/(3*N)
+                ti = 2.0d0*ukin/(3*dble(N))
                 if(mod(paso,f)==0) then
-                        write(*,*) paso,upot/dble(N),ti,ukin/dble(N)
-                        !write(*,*) "han pasado ...",f,"..... iteraciones"
+                        utot = (upot+ukin)/dble(N)
+                        write(9,300) paso,utot,upot/dble(N),ukin/dble(N),ti
+                        write(*,*) paso,utot,upot/dble(N),ukin/dble(N),ti
+                        write(1,*) N
+                        write(1,*) 'Lattice="',lx,' 0 0 0 ',ly,' 0 0 0 ',lz,'"' 
+                        do i =1,N
+                                write(1,100) "C",rx(i),ry(i),rz(i)
+                        end do
+                        call calcularPerfilrho(1)
                 end if
-                write(1,*) N
-                write(1,*) !'Lattice="',lx,' 0 0 0 ',ly,' 0 0 0 ','"' 
-                do i =1,N
-                        write(1,100) "C",rx(i),ry(i),rz(i)
-                end do
                 100 format(a,3f15.10)
-                !200 format(I6,3f15.10)
+                300 format(i12,4f12.6)
         end do
+        close(9)
+end subroutine
+
+
+subroutine calcularPerfilrho(flag)
+        use condiciones
+        use posiciones
+        use velocidades
+        use fuerzas
+        ! crear variables dz para ir calculando el perfil
+        ! obtener una grafica de l(z) vs rho(z) 
+        implicit none
+        integer :: i, flag,bin
+        if (flag==0) then 
+                nbins = int(lz/deltaz)
+                allocate (perfil(0:nbins))
+                perfil = 0.0d0
+                veces = 0
+        else if (flag==1) then ! quien lo diria que calcular los perfiles de densidad es tan facil
+                veces = veces+1
+                do i = 1,N
+                       bin = int(rz(i)/deltaz)
+                       perfil(bin) = perfil(bin) + 1.0d0
+                end do
+        else if(flag ==2)  then
+                open(22,file="perfiles.dat",status="replace",action="write")
+                do i = 0,nbins-1
+                        write(22,*) dble(i)*deltaz,perfil(i)/(lx*ly*deltaz*veces)
+                end do
+                close(22)
+                write(*,*) "Los perfiles de densidad se han guardado correctamente :)"
+        end if
 end subroutine
 
 
