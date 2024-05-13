@@ -13,32 +13,15 @@ module condiciones
                 double precision :: lx,ly,lz,upot,dt,deltaz
                 double precision, allocatable, dimension(:) :: ut
                 double precision, allocatable,dimension(:) :: perfil
+                double precision, allocatable, dimension(:) :: rx,ry,rz
+                double precision, allocatable, dimension(:) :: vx,vy,vz
+                double precision, allocatable, dimension(:) :: fx,fy,fz
 end module condiciones
-
-module posiciones
-        ! este modulo guarda las posiciones de las particulas
-        implicit none
-        double precision, allocatable, dimension(:) :: rx,ry,rz
-end module posiciones
-
-module velocidades
-        ! este modulo guarda las velocidades de las particulas
-        implicit none
-        double precision, allocatable, dimension(:) :: vx,vy,vz
-end module velocidades
-
-module fuerzas
-        ! este modulo guarda las fuerzas de interaccion entre las particulas
-        implicit none
-        double precision, allocatable, dimension(:) :: fx,fy,fz
-end module fuerzas
 !-----------------------
 ! inicion del programa main
 program practica  
+        use omp_lib
         use condiciones
-        use posiciones
-        use velocidades
-        use fuerzas
         call leerConfiguracion
         allocate(rx(N),ry(N),rz(N))
         allocate(vx(N),vy(N),vz(N))
@@ -49,10 +32,13 @@ program practica
         call calcularFuerzas      
         call calcularPerfilrho(0)       
         write(*,*) "Se ha iniciado la simulacion :)"
+        open(9,file="eukt.dat",status="replace",action="write")
+        !$omp parallel shared(fx,fy,fz,vx,vy,vz,rx,ry,rz)
         call ejecutarSimulacion
         call calcularPerfilrho(2)
         write(*,*) "La suma de fuerzas es: ", sum(fx+fy+fz)
         write(*,*) "La energia potencial es: ", upot/dble(N)
+        !$omp end parallel
 end program practica
 
 subroutine leerConfiguracion
@@ -75,7 +61,6 @@ subroutine generarPosiciones
         ! esta subrutina genera las posiciones de las particulas como si estuvieran 
         ! en una estructura cristalina
         use condiciones
-        use posiciones
         implicit none
         integer :: i,j,k,m
         m = 0
@@ -98,7 +83,6 @@ subroutine guardarPosiciones
         ! esta subrutina guarda las posiciones de las particulas en un archivo pos.xyz
         ! para posteriormente ver su dinamica en ovito
         use condiciones
-        use posiciones
         integer :: i
         i = 0
         open(1,file="pos.xyz",status="replace",action="write")
@@ -112,7 +96,6 @@ end subroutine
 
 subroutine generarVelocidades
         ! esta subrutina genera las velocidades de las particulas de manera aleatoria
-        use velocidades
         use condiciones
         implicit none
         double precision :: r
@@ -135,10 +118,6 @@ end subroutine
 
 subroutine calcularFuerzas
         ! esta subrutina calcula las fuerzas de interaccion entre cada particula
-
-        use fuerzas
-        use velocidades
-        use posiciones
         use condiciones
         implicit none
         integer :: i,j
@@ -199,15 +178,13 @@ subroutine ejecutarSimulacion
         ! esta subrutina ejecuta el bucle de la simulacion, calcula las posiciones
         ! y posteriormente las velocidades, manda a llamar a la subrutina fuerzas y a
         ! y guarda los datos en el archivo creado en la subrutina de guardarPosiciones
-        use fuerzas
-        use velocidades 
-        use posiciones
+        use omp_lib
         use condiciones
         integer :: paso,i
         double precision :: utot
         utot = 0.0d0
-        open(9,file="eukt.dat",status="replace",action="write")
         do paso = 1,nt
+                !$omp do
                 do i = 1,N             
                         vx(i) = vx(i) + fx(i)*dt*0.50d0
                         vy(i) = vy(i) + fy(i)*dt*0.50d0
@@ -228,12 +205,16 @@ subroutine ejecutarSimulacion
                         if(rz(i)<0.0d0)rz(i)=rz(i)+lz
 
                 end do
+               
+                !$omp end do
                 call calcularFuerzas
+                !$omp do 
                 do i =1,N         
                         vx(i) = vx(i) + fx(i)*dt*0.50d0
                         vy(i) = vy(i) + fy(i)*dt*0.50d0
                         vz(i) = vz(i) + fz(i)*dt*0.50d0
                 end do
+                !omp end do
                 ukin = 0.50d0*sum(vx**2+vy**2+vz**2)
                 ti = 2.0d0*ukin/(3*dble(N))
                 if(mod(paso,f)==0) then
@@ -255,10 +236,8 @@ end subroutine
 
 
 subroutine calcularPerfilrho(flag)
+        use omp_lib
         use condiciones
-        use posiciones
-        use velocidades
-        use fuerzas
         ! crear variables dz para ir calculando el perfil
         ! obtener una grafica de l(z) vs rho(z) 
         implicit none
@@ -270,10 +249,12 @@ subroutine calcularPerfilrho(flag)
                 veces = 0
         else if (flag==1) then ! quien lo diria que calcular los perfiles de densidad es tan facil
                 veces = veces+1
+                !$omp do
                 do i = 1,N
                        bin = int(rz(i)/deltaz)
                        perfil(bin) = perfil(bin) + 1.0d0
                 end do
+                !$omp end do
         else if(flag ==2)  then
                 open(22,file="perfiles.dat",status="replace",action="write")
                 do i = 0,nbins-1
